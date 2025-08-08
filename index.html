@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HTMLプレビューランナー（実行ボタン付き・安定版）</title>
+  <style>
+    :root{ --bg:#0f1216; --fg:#e6ebf3; --dim:#9aa3b2; --panel:#151a21; --line:#242a33; --acc:#31c48d; --err:#ef4444; }
+    *{ box-sizing:border-box; }
+    body{ margin:0; background:var(--bg); color:var(--fg); font:14px/1.6 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif; }
+    header{ padding:12px 16px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:center; }
+    header h1{ margin:0; font-size:16px; font-weight:700; }
+    .hint{ color:var(--dim); font-size:12px; }
+    main{ height:calc(100vh - 54px); display:grid; grid-template-columns: 1fr 1fr; }
+    .pane{ display:flex; flex-direction:column; min-width:0; }
+    .toolbar{ padding:8px; background:var(--panel); border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .toolbar button{ background:#1e252f; color:#fff; border:1px solid var(--line); padding:8px 12px; border-radius:8px; cursor:pointer; }
+    .toolbar button.primary{ background:var(--acc); color:#08110c; border-color:transparent; font-weight:700; }
+    .toolbar .right{ margin-left:auto; color:var(--dim); font-size:12px; }
+    textarea{ flex:1; width:100%; border:0; outline:none; background:#0c1015; color:#c7d1e3; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size:12px; padding:12px; resize:none; }
+    iframe{ flex:1; width:100%; border:0; background:#fff; }
+    .errors{ padding:8px 12px; background:#1a1212; color:#ffd6d6; border-top:1px solid #3a2626; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space:pre-wrap; }
+    .errors.hidden{ display:none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>HTMLプレビューランナー</h1>
+    <div class="hint">左にHTMLを貼って「実行」→ 右にプレビュー。保存/読込/サンプル/テストあり。</div>
+  </header>
+  <main>
+    <section class="pane">
+      <div class="toolbar">
+        <button id="run" class="primary">▶ 実行</button>
+        <button id="save">💾 ローカル保存</button>
+        <button id="load">📂 読み込み</button>
+        <button id="loadSample">☕ サンプル（Mscafe SHIFT）</button>
+        <button id="test1">🧪 Test 1: Hello</button>
+        <button id="test2">🧪 Test 2: Script</button>
+        <button id="test3">🧪 Test 3: Mscafe</button>
+        <span class="right">保存キー: <code>runner_html</code></span>
+      </div>
+      <textarea id="editor" spellcheck="false" placeholder="ここにHTMLを書いて『実行』で右に表示されます"></textarea>
+      <div id="errorBox" class="errors hidden" role="alert" aria-live="polite"></div>
+    </section>
+    <section class="pane">
+      <div class="toolbar"><strong>プレビュー</strong></div>
+      <iframe id="preview" title="preview"></iframe>
+    </section>
+  </main>
+
+  <!-- サンプル（テンプレートに格納して安全に取り出す） -->
+  <template id="sampleCafe">
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mscafe SHIFT（Cafe Style HTML MVP）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Montserrat:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root{ --coffee:#6b4f4f; --latte:#f7efe5; --cream:#fffaf3; --cocoa:#a37a74; --sage:#3e7a6b; --line:#e9ddd3; --ink:#2a2a2a; --muted:#7a6f69; --shadow: 0 10px 30px rgba(107,79,79,.15); }
+    html,body{ height:100%; }
+    body{ margin:0; color:var(--ink); font-family: 'Montserrat', 'Noto Sans JP', system-ui, -apple-system, Segoe UI, Roboto, Meiryo, sans-serif; background: radial-gradient(1200px 800px at 10% -10%, rgba(255,255,255,.8), transparent 60%), radial-gradient(900px 600px at 110% 0%, rgba(247,239,229,.9), transparent 50%), linear-gradient(180deg, #fff, var(--latte)); }
+    header{ position: sticky; top:0; z-index:10; background: linear-gradient(180deg, var(--cream), rgba(255,255,255,0.85)); backdrop-filter: blur(6px); border-bottom:1px solid var(--line); padding:12px 18px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+    .brand{ display:flex; align-items:center; gap:10px; }
+    .logo{ width:34px; height:34px; border-radius:50%; background: conic-gradient(from 200deg, var(--coffee), var(--cocoa)); color:#fff; display:grid; place-items:center; box-shadow: var(--shadow); }
+    .name{ font-family:'Pacifico', cursive; font-size:22px; color:var(--coffee); letter-spacing:.5px; }
+    nav a{ text-decoration:none; color:var(--muted); padding:8px 12px; border-radius:999px; border:1px solid transparent; transition:.2s ease; }
+    nav a:hover{ background:#fff; border-color: var(--line); color:var(--coffee); }
+    nav a.active{ background: var(--sage); color:#fff; border-color: transparent; }
+    main{ max-width: 1064px; margin: 0 auto; padding: 20px; }
+    section{ display:none; } section.active{ display:block; }
+    .card{ background:#fff; border:1px solid var(--line); border-radius:16px; padding:16px 16px 18px; box-shadow: var(--shadow); margin: 18px 0; }
+    .card h2, .card h3{ margin:.2rem 0 .8rem; color: var(--coffee); }
+    .row{ display:flex; gap:14px; flex-wrap:wrap; } .col{ flex:1 1 260px; min-width:240px; }
+    label{ display:block; font-size:12px; color:var(--muted); margin:0 0 6px; }
+    input, select, button{ width:100%; box-sizing:border-box; padding:12px; border:1px solid var(--line); border-radius:12px; font-size:14px; background:#fff; color:var(--ink); }
+    input:focus, select:focus{ outline:2px solid rgba(62,122,107,.15); border-color: var(--sage); }
+    .btn{ display:inline-flex; gap:8px; align-items:center; justify-content:center; cursor:pointer; font-weight:600; }
+    .btn.primary{ background: var(--sage); color:#fff; border: none; box-shadow: 0 6px 18px rgba(62,122,107,.25); }
+    .btn.ghost{ background:#fff; color:var(--coffee); border:1px solid var(--line); }
+    .btn.warn{ background:#fff5f5; color:#8b2c2c; border:1px solid #f1c9c9; }
+    .btn:hover{ transform: translateY(-1px); }
+    table{ width:100%; border-collapse:collapse; background:#fff; }
+    th, td{ border:1px solid var(--line); padding:9px 10px; font-size:13px; }
+    thead th{ background: linear-gradient(180deg, #fff, #faf7f3); color: var(--coffee); position:sticky; top:0; z-index:1; }
+    tbody tr:nth-child(odd){ background: #fffdf9; } .right{ text-align:right; } .muted{ color:var(--muted); }
+    .badge{ display:inline-block; padding:4px 8px; border-radius:999px; background:#f0faf7; color:var(--sage); font-size:12px; border:1px solid #d8eee6; }
+    .report{ border:1px dashed var(--line); background:#fff; border-radius:14px; padding:12px 12px 14px; }
+    .report h2{ font-size:18px; font-weight:700; color:var(--coffee); }
+    @media print{ header, #nav, .no-print{ display:none !important; } body{ background:#fff; } .report{ border:1px solid #000; padding:8px; box-shadow:none; } .report table{ border-collapse:collapse; width:100%; font-size:11px; } .report th, .report td{ border:1px solid #000; padding:4px; } .report thead th{ background:#eee !important; } }
+    .divider{ height:10px; background: repeating-linear-gradient(45deg, #f2e7db 0 10px, #f6efe6 10px 20px); border-radius:10px; margin:8px 0 16px; }
+    .tag{ display:inline-block; padding:2px 6px; border-radius:6px; font-size:11px; border:1px solid #eee; color:#8a6c6c; background:#fff7f2; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><div class="logo">☕</div><div class="name">Mscafe SHIFT</div></div>
+    <nav id="nav"><a href="#checkin" id="lnk-checkin">打刻フォーム</a><a href="#admin" id="lnk-admin">管理（集計/レポート/従業員）</a><a href="#settings" id="lnk-settings">給与ルール</a></nav>
+    <span class="badge" id="siteLabel"></span>
+  </header>
+  <main>
+    <!-- 打刻フォーム -->
+    <section id="checkin" class="active"><div class="card"><h2>打刻フォーム</h2><div class="divider"></div>
+      <div class="row"><div class="col"><label>従業員</label><select id="empSelect"></select></div>
+      <div class="col"><label>開始（日時）</label><input type="datetime-local" id="startAt" /></div>
+      <div class="col"><label>休憩（分）</label><input type="number" id="breakMin" value="0" min="0" step="5" /></div>
+      <div class="col"><label>終了（日時）</label><input type="datetime-local" id="endAt" /></div></div>
+      <div class="row" style="margin-top:10px;"><div class="col"><button class="btn primary" id="btnSave">💾 保存</button></div><div class="col"><button class="btn ghost" id="btnNow">🕒 現在時刻をセット</button></div></div>
+      <div id="saveMsg" class="muted" style="margin-top:10px;"></div></div>
+      <div class="card"><h3>最近の入力</h3><table id="recentTable"></table></div>
+    </section>
+
+    <!-- 管理（集計/レポート/従業員管理） -->
+    <section id="admin">
+      <div class="card"><h2>月次集計</h2><div class="divider"></div>
+        <div class="row"><div class="col"><label>対象月</label><input type="month" id="adminMonth" /></div>
+        <div class="col"><label>&nbsp;</label><button class="btn primary" id="btnRefresh">🔄 再計算</button></div></div>
+        <table id="summaryTable" style="margin-top:12px;"></table>
+      </div>
+
+      <div class="card"><h3>従業員管理（有効/無効）</h3>
+        <div class="row">
+          <div class="col"><label>氏名</label><input id="empName" /></div>
+          <div class="col"><label>社員番号</label><input id="empCode" /></div>
+          <div class="col"><label>時給</label><input id="empWage" type="number" /></div>
+          <div class="col"><label>&nbsp;</label><button id="btnAddEmp" class="btn primary">追加</button></div>
+        </div>
+        <table id="empTable" style="margin-top:12px;"></table>
+      </div>
+
+      <div class="card"><h3>従業員別レポート（Excel風PDF）</h3>
+        <div class="row"><div class="col"><label>従業員</label><select id="reportEmp"></select></div>
+        <div class="col"><label>対象月</label><input type="month" id="reportMonth" /></div>
+        <div class="col"><label>&nbsp;</label><button class="btn primary no-print" id="btnRenderReport">🧾 レポート生成</button></div>
+        <div class="col"><label>&nbsp;</label><button class="btn ghost no-print" id="btnPrint">🖨 PDFに印刷</button></div></div>
+        <div id="reportArea" class="report" style="margin-top:12px;"></div>
+      </div>
+    </section>
+
+    <!-- 給与ルール設定 -->
+    <section id="settings"><div class="card"><h2>給与ルール</h2><div class="divider"></div>
+      <div class="row"><div class="col"><label>開始丸め（分）</label><select id="roundStart"><option>1</option><option selected>5</option><option>10</option><option>15</option><option>30</option></select></div>
+      <div class="col"><label>終了丸め（分）</label><select id="roundEnd"><option>1</option><option selected>5</option><option>10</option><option>15</option><option>30</option></select></div>
+      <div class="col"><label>実働丸め（分）</label><select id="roundWorked"><option selected>1</option><option>5</option><option>10</option><option>15</option><option>30</option></select></div>
+      <div class="col"><label>丸め方式</label><select id="roundMode"><option value="floor" selected>切捨て</option><option value="round">四捨五入</option><option value="ceil">切上げ</option></select></div></div>
+      <div class="row" style="margin-top:8px;"><div class="col"><label>時給（デフォルト）</label><input type="number" id="defaultWage" value="1100" /></div>
+      <div class="col"><label>交通費（月額・定額）</label><input type="number" id="commuteFixed" value="0" /></div>
+      <div class="col"><label>&nbsp;</label><button class="btn primary" id="btnSaveRules">💾 ルールを保存</button></div></div>
+    </div></section>
+  </main>
+
+  <script>
+    // 依存のない素のJSのみ。$ などの別名は使用しない
+    function pad(n){ return String(n).padStart(2,'0') }
+    function ymd(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()) }
+    function hm(d){ return pad(d.getHours())+":"+pad(d.getMinutes()) }
+    function getQuery(){ return new URLSearchParams(location.search) }
+    function getSite(){ return getQuery().get('site') || 'HQ' }
+    function load(key, def){ try{ return JSON.parse(localStorage.getItem(key) || JSON.stringify(def)) }catch(e){ return def } }
+    function save(key, val){ localStorage.setItem(key, JSON.stringify(val)) }
+    function roundUnit(min, unit, mode){ var q=min/unit; if(mode==='ceil') return Math.ceil(q)*unit; if(mode==='floor') return Math.floor(q)*unit; return Math.round(q)*unit }
+    function minutesBetween(start, end){ var s=new Date(start), e=new Date(end); var e2 = e<s ? new Date(e.getTime()+86400000) : e; return Math.max(0, Math.round((e2 - s)/60000)) }
+
+    var STATE = {
+      employees: load('employees', [
+        {id: (crypto.randomUUID?crypto.randomUUID():String(Math.random())), code:'A001', name:'山田太郎', hourly_wage:1150, active:true},
+        {id: (crypto.randomUUID?crypto.randomUUID():String(Math.random())), code:'A002', name:'佐藤花子', hourly_wage:1200, active:true}
+      ]),
+      shifts: load('shifts', []),
+      rules: load('rules', { roundStart:5, roundEnd:5, roundWorked:1, roundMode:'floor', defaultWage:1100, commuteFixed:0 })
+    }
+
+    function persist(){ save('employees', STATE.employees); save('shifts', STATE.shifts); save('rules', STATE.rules) }
+    function route(){
+      var hash = location.hash || '#checkin'
+      Array.from(document.querySelectorAll('nav a')).forEach(function(a){ a.classList.toggle('active', a.getAttribute('href')===hash) })
+      Array.from(document.querySelectorAll('main section')).forEach(function(sec){ sec.classList.toggle('active', '#'+sec.id===hash) })
+    }
+    window.addEventListener('hashchange', route)
+
+    function init(){
+      document.getElementById('siteLabel').textContent = '拠点: '+getSite()
+
+      // 打刻フォーム
+      renderEmpSelect(); setNow(); document.getElementById('btnNow').onclick=setNow; document.getElementById('btnSave').onclick=onSaveShift; renderRecent()
+
+      // 管理
+      var now = new Date(); document.getElementById('adminMonth').value = now.getFullYear()+"-"+pad(now.getMonth()+1)
+      document.getElementById('btnRefresh').onclick = renderSummary; renderSummary()
+
+      // 従業員管理（adminに移設）
+      document.getElementById('btnAddEmp').onclick = addEmployee
+      renderEmpTable()
+
+      // レポート
+      renderReportEmp(); document.getElementById('reportMonth').value = now.getFullYear()+"-"+pad(now.getMonth()+1)
+      document.getElementById('btnRenderReport').onclick = renderReport; document.getElementById('btnPrint').onclick = function(){ window.print() }
+
+      // ルール
+      document.getElementById('roundStart').value = STATE.rules.roundStart
+      document.getElementById('roundEnd').value = STATE.rules.roundEnd
+      document.getElementById('roundWorked').value = STATE.rules.roundWorked
+      document.getElementById('roundMode').value = STATE.rules.roundMode
+      document.getElementById('defaultWage').value = STATE.rules.defaultWage
+      document.getElementById('commuteFixed').value = STATE.rules.commuteFixed
+      document.getElementById('btnSaveRules').onclick = function(){
+        STATE.rules.roundStart = parseInt(document.getElementById('roundStart').value)
+        STATE.rules.roundEnd = parseInt(document.getElementById('roundEnd').value)
+        STATE.rules.roundWorked = parseInt(document.getElementById('roundWorked').value)
+        STATE.rules.roundMode = document.getElementById('roundMode').value
+        STATE.rules.defaultWage = parseFloat(document.getElementById('defaultWage').value||0)
+        STATE.rules.commuteFixed = parseFloat(document.getElementById('commuteFixed').value||0)
+        persist(); alert('保存しました')
+      }
+
+      route()
+    }
+
+    // ------- 従業員 -------
+    function renderEmpSelect(){
+      var sel = document.getElementById('empSelect'); sel.innerHTML = ''
+      STATE.employees.filter(function(e){ return e.active }).forEach(function(e){
+        var opt = document.createElement('option'); opt.value = e.id; opt.textContent = e.name+'（'+(e.code||'')+'）'
+        sel.appendChild(opt)
+      })
+    }
+    function renderReportEmp(){
+      var sel = document.getElementById('reportEmp'); sel.innerHTML = ''
+      STATE.employees.forEach(function(e){
+        var opt = document.createElement('option'); opt.value = e.id; opt.textContent = e.name + (e.active? '' : '（無効）')
+        sel.appendChild(opt)
+      })
+    }
+    function addEmployee(){
+      var name = document.getElementById('empName').value.trim();
+      var code = document.getElementById('empCode').value.trim();
+      var wage = parseFloat(document.getElementById('empWage').value || STATE.rules.defaultWage)
+      if(!name){ alert('氏名を入力'); return }
+      var id = (crypto.randomUUID?crypto.randomUUID():String(Math.random()))
+      STATE.employees.push({ id:id, code:code, name:name, hourly_wage:wage, active:true })
+      persist(); renderEmpSelect(); renderReportEmp(); renderEmpTable()
+      document.getElementById('empName').value = ''; document.getElementById('empCode').value=''; document.getElementById('empWage').value=''
+    }
+    function toggleActive(index){
+      var e = STATE.employees[index]; if(!e) return
+      var msg = e.active? 'この従業員を無効化します。よろしいですか？' : 'この従業員を有効化しますか？'
+      if(!confirm(msg)) return
+      e.active = !e.active
+      persist(); renderEmpTable(); renderEmpSelect(); renderReportEmp(); renderSummary()
+    }
+    function renderEmpTable(){
+      var t = document.getElementById('empTable')
+      t.innerHTML = '<thead><tr><th>状態</th><th>氏名</th><th>社員番号</th><th class="right">時給</th><th>操作</th></tr></thead>'
+      var tb = document.createElement('tbody')
+      STATE.employees.forEach(function(e,i){
+        var tr = document.createElement('tr')
+        var wageDisp = (e.hourly_wage && e.hourly_wage.toLocaleString? e.hourly_wage.toLocaleString() : STATE.rules.defaultWage)
+        tr.innerHTML = '<td>'+(e.active? '<span class="tag">有効</span>' : '<span class="tag">無効</span>')+'</td>'+
+                       '<td>'+e.name+(e.active? '' : '（無効）')+'</td>'+
+                       '<td>'+(e.code||'')+'</td>'+
+                       '<td class="right">'+wageDisp+'</td>'+
+                       '<td>'+(e.active? '<button class="btn warn" data-i="'+i+'">無効化</button>' : '<button class="btn ghost" data-i="'+i+'">有効化</button>')+'</td>'
+        tb.appendChild(tr)
+      })
+      t.appendChild(tb)
+      Array.from(tb.querySelectorAll('button')).forEach(function(btn){ btn.onclick = function(){ toggleActive(parseInt(btn.getAttribute('data-i'))) } })
+    }
+
+    // ------- 打刻保存 -------
+    function setNow(){
+      var now = new Date(); var iso = now.getFullYear()+"-"+pad(now.getMonth()+1)+"-"+pad(now.getDate())+"T"+pad(now.getHours())+":"+pad(now.getMinutes())
+      document.getElementById('startAt').value = iso; document.getElementById('endAt').value = iso
+    }
+
+    function onSaveShift(){
+      var employee_id = document.getElementById('empSelect').value
+      if(!employee_id){ alert('従業員を選択'); return }
+      var emp = STATE.employees.find(function(e){ return e.id===employee_id })
+      if(!emp || !emp.active){ alert('無効化された従業員は打刻できません'); return }
+
+      var start = document.getElementById('startAt').value; var end = document.getElementById('endAt').value
+      var breakMin = parseInt(document.getElementById('breakMin').value || '0')
+      if(!start || !end){ alert('開始と終了を入力'); return }
+
+      var sMinRaw = Math.floor(new Date(start).getTime()/60000)
+      var eMinRaw = Math.floor(new Date(end).getTime()/60000)
+      var sMin = roundUnit(sMinRaw, STATE.rules.roundStart, STATE.rules.roundMode)
+      var eMin = roundUnit(eMinRaw, STATE.rules.roundEnd, STATE.rules.roundMode)
+      var startR = new Date(sMin*60000).toISOString()
+      var endR = new Date(eMin*60000).toISOString()
+
+      var worked = Math.max(0, roundUnit(minutesBetween(startR, endR) - breakMin, STATE.rules.roundWorked, STATE.rules.roundMode))
+      var site = getSite()
+      var date = ymd(new Date(startR))
+      STATE.shifts.push({ id: (crypto.randomUUID?crypto.randomUUID():String(Math.random())), employee_id:employee_id, site:site, date:date, start:startR, end:endR, break_min:breakMin, worked_min:worked })
+      persist()
+
+      var wage = (emp.hourly_wage!=null ? emp.hourly_wage : STATE.rules.defaultWage)
+      var pay = Math.round(wage * (worked/60))
+      document.getElementById('saveMsg').textContent = '保存しました。実働 '+(worked/60).toFixed(2)+' h、概算日給 '+pay.toLocaleString()+' 円'
+      renderRecent(); renderSummary()
+    }
+
+    // ------- 画面レンダリング -------
+    function renderRecent(){
+      var t = document.getElementById('recentTable')
+      var items = STATE.shifts.slice(-10).reverse()
+      t.innerHTML = '<thead><tr><th>氏名</th><th>日付</th><th>出勤</th><th>退勤</th><th class="right">休憩(分)</th><th class="right">実働(h)</th><th>拠点</th></tr></thead>'
+      var tb = document.createElement('tbody')
+      items.forEach(function(s){
+        var emp = STATE.employees.find(function(e){ return e.id===s.employee_id })
+        var st = new Date(s.start), ed = new Date(s.end)
+        var tr = document.createElement('tr')
+        tr.innerHTML = '<td>'+(emp?emp.name:'')+(emp && !emp.active?'（無効）':'')+'</td><td>'+s.date+'</td><td>'+hm(st)+'</td><td>'+hm(ed)+'</td><td class="right">'+s.break_min+'</td><td class="right">'+(s.worked_min/60).toFixed(2)+'</td><td>'+s.site+'</td>'
+        tb.appendChild(tr)
+      })
+      t.appendChild(tb)
+    }
+
+    function renderSummary(){
+      var month = document.getElementById('adminMonth').value
+      var t = document.getElementById('summaryTable')
+      t.innerHTML = '<thead><tr><th>氏名</th><th class="right">勤務日数</th><th class="right">総時間(h)</th><th class="right">時給(円)</th><th class="right">交通費(固定)</th><th class="right">総支給(概算)</th></tr></thead>'
+      var tb = document.createElement('tbody')
+
+      var byEmp = {}
+      STATE.shifts.forEach(function(s){
+        if(!s.date || s.date.indexOf(month)!==0) return
+        if(!byEmp[s.employee_id]) byEmp[s.employee_id] = { days:0, min:0 }
+        byEmp[s.employee_id].days += 1
+        byEmp[s.employee_id].min += (s.worked_min || (minutesBetween(s.start, s.end) - (s.break_min||0)))
+      })
+
+      STATE.employees.forEach(function(e){
+        var r = byEmp[e.id] || { days:0, min:0 }
+        var hours = r.min/60
+        var wage = (e.hourly_wage!=null ? e.hourly_wage : STATE.rules.defaultWage)
+        var base = Math.round(hours * wage)
+        var total = base + (STATE.rules.commuteFixed||0)
+        var nameDisp = e.name + (e.active? '' : '（無効）')
+        var tr = document.createElement('tr')
+        tr.innerHTML = '<td>'+nameDisp+'</td><td class="right">'+r.days+'</td><td class="right">'+hours.toFixed(2)+'</td><td class="right">'+wage.toLocaleString()+'</td><td class="right">'+(STATE.rules.commuteFixed||0).toLocaleString()+'</td><td class="right">'+total.toLocaleString()+'</td>'
+        tb.appendChild(tr)
+      })
+      t.appendChild(tb)
+    }
+
+    function renderReport(){
+      var empId = document.getElementById('reportEmp').value
+      var month = document.getElementById('reportMonth').value
+      var emp = STATE.employees.find(function(e){ return e.id===empId })
+      if(!emp){ alert('従業員を選択'); return }
+      var wage = (emp.hourly_wage!=null ? emp.hourly_wage : STATE.rules.defaultWage)
+
+      var list = STATE.shifts.filter(function(s){ return s.employee_id===empId && s.date && s.date.indexOf(month)===0 })
+      list.sort(function(a,b){ return a.date.localeCompare(b.date) })
+
+      var rows = ''
+      var totalMin = 0
+      list.forEach(function(s){
+        var st = new Date(s.start), ed = new Date(s.end)
+        var worked = (s.worked_min!=null ? s.worked_min : (minutesBetween(s.start, s.end) - (s.break_min||0)))
+        totalMin += worked
+        var daily = Math.round(wage * (worked/60))
+        rows += '<tr>'+
+          '<td>'+s.date+'</td>'+
+          '<td>'+hm(st)+'</td>'+
+          '<td>'+hm(ed)+'</td>'+
+          '<td class="right">'+(s.break_min||0)+'</td>'+
+          '<td class="right">'+(worked/60).toFixed(2)+'</td>'+
+          '<td class="right">'+wage.toLocaleString()+'</td>'+
+          '<td class="right">'+daily.toLocaleString()+'</td>'+
+        '</tr>'
+      })
+      var totalH = (totalMin/60).toFixed(2)
+      var totalPay = Math.round((totalMin/60)*wage + (STATE.rules.commuteFixed||0))
+
+      document.getElementById('reportArea').innerHTML =
+        '<h2>アルバイト給与計算表（'+month+'）</h2>'+
+        '<table style="margin-bottom:6px;border:none;">'+
+          '<tr style="border:none;"><td style="border:none;">氏名：</td><td style="border:none;">'+emp.name+(emp.active?'':'（無効）')+'</td></tr>'+
+          '<tr style="border:none;"><td style="border:none;">時給：</td><td style="border:none;">'+wage.toLocaleString()+' 円</td></tr>'+
+          '<tr style="border:none;"><td style="border:none;">交通費（月額・定額）：</td><td style="border:none;">'+(STATE.rules.commuteFixed||0).toLocaleString()+' 円</td></tr>'+
+        '</table>'+
+        '<table>'+
+          '<thead><tr><th>日付</th><th>出勤時間</th><th>退勤時間</th><th>休憩(分)</th><th>実働(h)</th><th>時給</th><th>日給額</th></tr></thead>'+
+          '<tbody>'+ (rows || '<tr><td colspan="7">データがありません</td></tr>') +'</tbody>'+
+        '</table>'+
+        '<table style="margin-top:6px;border:none;">'+
+          '<tr style="border:none;"><td style="border:none;">総勤務時間：</td><td style="border:none;">'+totalH+' h</td></tr>'+
+          '<tr style="border:none;"><td style="border:none;">総支給額（概算）：</td><td style="border:none;">'+totalPay.toLocaleString()+' 円</td></tr>'+
+        '</table>'
+    }
+
+    // 起動
+    init()
+  </script>
+</body>
+</html>
+  </template>
+
+  <script>
+    // 要素参照（jQuery風ショートハンドは使わない）
+    var editor = document.getElementById('editor')
+    var frame = document.getElementById('preview')
+    var errorBox = document.getElementById('errorBox')
+
+    // Local storage helpers
+    var KEY = 'runner_html'
+    function saveLocal(){ localStorage.setItem(KEY, editor.value) }
+    function loadLocal(){ editor.value = localStorage.getItem(KEY)||'' }
+
+    function showError(msg){
+      errorBox.textContent = msg
+      errorBox.classList.remove('hidden')
+    }
+    function clearError(){
+      errorBox.textContent = ''
+      errorBox.classList.add('hidden')
+    }
+
+    // Run the code into iframe (with basic error handling)
+    function run(){
+      clearError()
+      try{
+        var doc = frame.contentWindow.document
+        doc.open()
+        doc.write(editor.value)
+        doc.close()
+      }catch(e){
+        showError('実行時エラー: '+ (e && e.message ? e.message : e))
+      }
+    }
+
+    // Load sample (from <template>)
+    function loadSample(){
+      var tpl = document.getElementById('sampleCafe')
+      if(!tpl){ showError('サンプルが見つかりません'); return }
+      editor.value = tpl.innerHTML.trim()
+    }
+
+    // Minimal test cases
+    function loadTest1(){ editor.value = '<!doctype html><title>Test1</title><h1>Hello</h1><p>Basic HTML should render.</p>' }
+    function loadTest2(){ editor.value = '<!doctype html><title>Test2</title><script>document.addEventListener("DOMContentLoaded",()=>{document.body.innerHTML+="<p>Script OK</p>"})<\/script>' }
+    function loadTest3(){ loadSample() }
+
+    // Hook up UI
+    document.getElementById('run').onclick = run
+    document.getElementById('save').onclick = saveLocal
+    document.getElementById('load').onclick = loadLocal
+    document.getElementById('loadSample').onclick = function(){ loadSample(); run() }
+    document.getElementById('test1').onclick = function(){ loadTest1(); run() }
+    document.getElementById('test2').onclick = function(){ loadTest2(); run() }
+    document.getElementById('test3').onclick = function(){ loadTest3(); run() }
+
+    // Load last session automatically & run
+    loadLocal()
+    if(editor.value.trim()!=='') run()
+  </script>
+</body>
+</html>
